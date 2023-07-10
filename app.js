@@ -1,15 +1,16 @@
 const axios = require('axios');
-const fs = require('fs');
 const xml2js = require('xml2js');
 const { parseString } = xml2js;
-const csv = require('csv-parser');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const fs = require('fs');
+const TelegramBot = require('node-telegram-bot-api');
+const bot = new TelegramBot('6309511831:AAHjqHMKMGzIewjKXeVSKH9ZB1G1DH9ydR4', { polling: true });
 
 function replacePipeWithArrow(str) {
     return str.replace(/\|/g, ' > ');
   }
 // Функція для отримання XML-прайсу за посиланням
-async function getXMLPrice(url) {
+async function getXMLPrice(category) {
   try {
     const response = await axios.get('https://toysi.ua/feed-products-residue.php',{
     params: {
@@ -21,7 +22,7 @@ async function getXMLPrice(url) {
         assembly: true,
         cats: 'yes', 
         round: 'up',
-        category: -51995, 
+        category: category, 
         key: 'a8181544a73dbb409474d90d52869122'
 
       }});
@@ -75,7 +76,6 @@ function convertXMLToCSV(xmlData) {
             // Додати значення інших полів з XML
           });
         });
-        console.log(csvData)
         resolve(csvData);
       }
     });
@@ -97,12 +97,12 @@ function saveCSVFile(data, filename) {
 }
 
 // Основна функція для запуску додатку
-async function run() {
+async function run(category) {
   const xmlUrl = 'https://toysi.ua/feed-products-residue.php?vendor_code=prom&margin_import=0.3&margin_ukr=0.3&price_from=150&lang=ukr&assembly=true&cats=yes&round=up&category=99006&key=a8181544a73dbb409474d90d52869122';
 
   try {
     // Отримати XML-прайс
-    const xmlData = await getXMLPrice(xmlUrl);
+    const xmlData = await getXMLPrice(category);
 
     // Перетворити XML в CSV
     const csvData = await convertXMLToCSV(xmlData);
@@ -114,5 +114,39 @@ async function run() {
   }
 }
 
-// Запуск основної функції
-run();
+
+
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+  const filePath = './price.csv';
+  if(msg.text === 'all') {
+    await run(-51995);
+    // Перевірка, чи існує файл price.csv
+    fs.access(filePath, fs.constants.F_OK, (err) => {
+      if (err) {
+        bot.sendMessage(chatId, 'Файл price.csv не знайдено!');
+        return;
+      }
+      // Відправка файлу price.csv
+      bot.sendDocument(chatId, filePath)
+        .catch((error) => {
+          bot.sendMessage(chatId, 'Виникла помилка під час відправлення файлу.');
+          console.error(error);
+      });
+    });
+  } else {
+    await run(msg.text);
+    fs.access(filePath, fs.constants.F_OK, (err) => {
+      if (err) {
+        bot.sendMessage(chatId, 'Файл price.csv не знайдено!');
+        return;
+      }
+      // Відправка файлу price.csv
+      bot.sendDocument(chatId, filePath)
+        .catch((error) => {
+          bot.sendMessage(chatId, 'Виникла помилка під час відправлення файлу.');
+          console.error(error);
+      });
+    });
+  }
+});
