@@ -9,6 +9,14 @@ const bot = new TelegramBot('6309511831:AAHjqHMKMGzIewjKXeVSKH9ZB1G1DH9ydR4', { 
 function replacePipeWithArrow(str) {
     return str.replace(/\|/g, ' > ');
   }
+
+  function checkAvailableValue(value) {
+    if (value === "") {
+      return false;
+    } else {
+      return value;
+    }
+  }
 // Функція для отримання XML-прайсу за посиланням
 async function getXMLPrice(category) {
   try {
@@ -42,8 +50,9 @@ function convertXMLToCSV(xmlData) {
         reject(error);
       } else {
         let csvData = [];
+        
         const items = result.yml_catalog.shop[0].offers[0].offer;
-
+        
 
         //Додати заголовки CSV
         csvData.push({
@@ -72,7 +81,7 @@ function convertXMLToCSV(xmlData) {
             keywords: item.keywords[0],
             price: item.price[0],
             categoryId: item.categoryId[0],
-            available: item['$'].available,
+            available: checkAvailableValue(item['$'].available),
             // Додати значення інших полів з XML
           });
         });
