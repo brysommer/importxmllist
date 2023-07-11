@@ -12,7 +12,7 @@ function replacePipeWithArrow(str) {
 
   function checkAvailableValue(value) {
     if (value === "") {
-      return false;
+      return 'false';
     } else {
       return value;
     }
@@ -85,6 +85,7 @@ function convertXMLToCSV(xmlData) {
             // Додати значення інших полів з XML
           });
         });
+        console.log(csvData)
         resolve(csvData);
       }
     });
