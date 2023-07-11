@@ -23,8 +23,8 @@ async function getXMLPrice(category) {
         cats: 'yes', 
         round: 'up',
         category: category, 
-        key: 'a8181544a73dbb409474d90d52869122'
-
+        key: 'a8181544a73dbb409474d90d52869122',
+        out_of_stock: 7
       }});
     return response.data;
   } catch (error) {
