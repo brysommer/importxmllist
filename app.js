@@ -1,39 +1,23 @@
 const axios = require('axios');
 const xml2js = require('xml2js');
 const { parseString } = xml2js;
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const fs = require('fs');
+const XLSX = require('xlsx');
 const TelegramBot = require('node-telegram-bot-api');
-const bot = new TelegramBot('6309511831:AAHjqHMKMGzIewjKXeVSKH9ZB1G1DH9ydR4', { polling: true });
+const bot = new TelegramBot('6033856238:AAEUyg7tcey_gkWQx7S6V3OqGNABA9HaFE4', { polling: true });
 
-function replacePipeWithArrow(str) {
-    return str.replace(/\|/g, ' > ');
-  }
-
-  function checkAvailableValue(value) {
-    if (value === "") {
-      return 'false';
-    } else {
-      return value;
+function findCategoryById(categories, id) {
+  for (const category of categories) {
+    if (category.$ && category.$.id === id) {
+      return category._;
     }
   }
-// Функція для отримання XML-прайсу за посиланням
-async function getXMLPrice(category) {
+  return null;
+}
+
+const getXMLPrice = async() => {
   try {
-    const response = await axios.get('https://toysi.ua/feed-products-residue.php',{
-    params: {
-        vendor_code: 'prom',
-        margin_import: 0.3,
-        margin_ukr: 0.3, 
-        price_from: 150,
-        lang: 'ukr',
-        assembly: true,
-        cats: 'yes', 
-        round: 'up',
-        category: category, 
-        key: 'a8181544a73dbb409474d90d52869122',
-        out_of_stock: 7
-      }});
+    const response = await axios.get('https://jumper-cloud.fra1.digitaloceanspaces.com/93280288/export/yml/8/export_hotline.xml?uuid=557423');
     return response.data;
   } catch (error) {
     console.error('Помилка при отриманні XML: ', error);
@@ -41,7 +25,6 @@ async function getXMLPrice(category) {
   }
 }
 
-// Функція для перетворення XML в CSV
 function convertXMLToCSV(xmlData) {
   return new Promise((resolve, reject) => {
     parseString(xmlData, (error, result) => {
@@ -50,108 +33,86 @@ function convertXMLToCSV(xmlData) {
         reject(error);
       } else {
         let csvData = [];
-        
-        const items = result.yml_catalog.shop[0].offers[0].offer;
-        
+        const  items  = result.yml_catalog.shop[0].offers[0].offer;
+        const  cats  = result.yml_catalog.shop[0].categories[0].category;
 
-        //Додати заголовки CSV
-        csvData.push({
-          name: 'NAME',
-          vendorCode: 'SKU',
-          picture: 'PIC',
-          cats: 'CAT',
-          description: 'DESC',
-          ostatok: 'STOCK',
-          keywords: 'KEYW',
-          price: 'PRICE',
-          categoryId: 'CAT_ID',
-          available: 'available'
-          // Додати інші необхідні поля
-        });
+        csvData.push([
+          'ID',
+          'STOCK',
+          'URL',
+          'PRICE',
+          'CURRENCY',
+          'CAT',
+          'CategoryName',
+          'PIC',
+          'NAME',
+          'VENDOR',
+          'VENDOR CODE',
+          'DESC',
+          'PICKUP',
+          'WARRANTY',
+          'PARAMS',
+        ]
+        );
 
-        // Додати дані з XML до CSV
         items.forEach((item) => {
-          csvData.push({
-            vendorCode: item.vendorCode[0],
-            name: item.name[0],
-            picture: item.picture[0],
-            cats: replacePipeWithArrow(item.cats[0]),
-            description: item.description[0],
-            ostatok: item.ostatok[0],
-            keywords: item.keywords[0],
-            price: item.price[0],
-            categoryId: item.categoryId[0],
-            available: checkAvailableValue(item['$'].available),
-            // Додати значення інших полів з XML
-          });
+          csvData.push([
+            item['$'].id,
+            item['$'].available,
+            item.url[0],
+            item.price[0],
+            item.currencyId[0],
+            item.categoryId[0],
+            findCategoryById(cats, item.categoryId[0]),
+            item.picture[0],
+            item.name[0],
+            item.vendor[0],
+            item.vendorCode[0],
+            item.description[0],
+            item['pickup-options'][0].option[0]['$'].days,
+            item.manufacturer_warranty[0],
+            item.param[0]['_'],
+          ]
+          );
         });
-        console.log(csvData)
         resolve(csvData);
       }
     });
   });
 }
-
-// Функція для збереження CSV-файлу
-function saveCSVFile(data, filename) {
-  const csvWriter = createCsvWriter({
-    path: filename,
-    header: Object.keys(data[0])
-    //header: Object.keys(data[0]).map((key) => ({ id: key, title: data[0][key] })),
-  });
-
-  csvWriter
-    .writeRecords(data)
-    .then(() => console.log('CSV-файл успішно збережено.'))
-    .catch((error) => console.error('Помилка при збереженні CSV-файлу: ', error));
+function writeArrayToXLS(arrayData, xlsFilePath) {
+  try {
+    const workbook = XLSX.utils.book_new();
+    const sheetName = 'Sheet1';
+    const worksheet = XLSX.utils.aoa_to_sheet(arrayData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, xlsFilePath);
+    console.log('Масив успішно записано в XLS.');
+  } catch (error) {
+    console.error('Помилка під час запису масиву в XLS:', error);
+  }
 }
 
-// Основна функція для запуску додатку
-async function run(category) {
-  const xmlUrl = 'https://toysi.ua/feed-products-residue.php?vendor_code=prom&margin_import=0.3&margin_ukr=0.3&price_from=150&lang=ukr&assembly=true&cats=yes&round=up&category=99006&key=a8181544a73dbb409474d90d52869122';
-
+async function run() {
   try {
-    // Отримати XML-прайс
-    const xmlData = await getXMLPrice(category);
-
-    // Перетворити XML в CSV
-    const csvData = await convertXMLToCSV(xmlData);
-
-    // Зберегти CSV-файл
-    saveCSVFile(csvData, 'price.csv');
+    const xmlData = await getXMLPrice();
+    const dataArray = await convertXMLToCSV(xmlData)
+    writeArrayToXLS(dataArray, 'price.xls');
   } catch (error) {
     console.error('Помилка: ', error);
   }
 }
 
-
-
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
-  const filePath = './price.csv';
+  const filePath = './price.xls';
   if(msg.text === 'all') {
-    await run(-51995);
-    // Перевірка, чи існує файл price.csv
-    fs.access(filePath, fs.constants.F_OK, (err) => {
+    await run();
+    fs.access('./price.xls', fs.constants.F_OK, (err) => {
       if (err) {
-        bot.sendMessage(chatId, 'Файл price.csv не знайдено!');
+        bot.sendMessage(chatId, 'Файл price.xls не знайдено!');
         return;
       }
-      // Відправка файлу price.csv
-      bot.sendDocument(chatId, filePath)
-        .catch((error) => {
-          bot.sendMessage(chatId, 'Виникла помилка під час відправлення файлу.');
-          console.error(error);
-      });
-    });
-  } else {
-    await run(msg.text);
-    fs.access(filePath, fs.constants.F_OK, (err) => {
-      if (err) {
-        bot.sendMessage(chatId, 'Файл price.csv не знайдено!');
-        return;
-      }
-      // Відправка файлу price.csv
       bot.sendDocument(chatId, filePath)
         .catch((error) => {
           bot.sendMessage(chatId, 'Виникла помилка під час відправлення файлу.');
@@ -160,3 +121,44 @@ bot.on('message', async (msg) => {
     });
   }
 });
+
+
+const sendMorningMessage = async () => {
+  try {
+    const chatId = '@mmarketkiev'; 
+    await run();
+    fs.access('./price.xls', fs.constants.F_OK, (err) => {
+      if (err) {
+        bot.sendMessage(chatId, 'Файл price.xls не знайдено!');
+        return;
+      }
+      bot.sendDocument(chatId, './price.xls', { 
+        reply_markup: { 
+          inline_keyboard: [[
+            { 
+              text: 'Для замовлення або запитань перейдіть в чат з менеджером',
+              url: 'https://t.me/mmarketkiev_bot',
+            }
+          ]]
+        }})
+        .catch((error) => {
+          bot.sendMessage(chatId, 'Виникла помилка під час відправлення файлу.');
+          console.error(error);
+      });
+    });
+    console.log('Повідомлення надіслано успішно.');
+  } catch (error) {
+    console.error('Помилка при надсиланні повідомлення:', error.message);
+  }
+};
+
+const checkAndSendMorningMessage = () => {
+  const now = new Date();
+  const kievTimeZoneOffset = 3;
+
+  if (now.getUTCHours() === 9 - kievTimeZoneOffset && now.getUTCMinutes() === 0) {
+    sendMorningMessage();
+  }
+};
+
+setInterval(checkAndSendMorningMessage, 60000);
