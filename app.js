@@ -133,6 +133,7 @@ const sendMorningMessage = async () => {
         bot.sendMessage(chatId, 'Файл price.xls не знайдено!');
         return;
       }
+      bot.sendMessage(chatId, 'Доброго ранку до вашого ознайомлення свіжий прайс.');
       bot.sendDocument(chatId, './price.xls', { 
         reply_markup: { 
           inline_keyboard: [[
