@@ -113,6 +113,7 @@ bot.on('message', async (msg) => {
         bot.sendMessage(chatId, 'Файл price.xls не знайдено!');
         return;
       }
+      bot.sendMessage(chatId, 'Доброго ранку до вашого ознайомлення свіжий прайс.');
       bot.sendDocument(chatId, filePath)
         .catch((error) => {
           bot.sendMessage(chatId, 'Виникла помилка під час відправлення файлу.');
